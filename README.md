@@ -12,7 +12,7 @@
 
 ### 6.6 天赋分配布局
 
-6.6 天赋分配主表由 `DWORD[0x00500C3B]` 指向，当前两个基底均解析为 `0x00511000`。每个特效占 `0x10` 字节，包含四组 `角色 UInt16 + 特效值 UInt8` 和两组 `兵种 UInt8 + 特效值 UInt8`。角色 `1024` 表示空；兵种 `0..79` 有效，读取到 `80` 及以上时显示为空，保存统一写 `255`。
+6.6 天赋分配主表由 `DWORD[0x00500C3B]` 指向，当前两个基底均解析为 `0x00511000`。每个特效占 `0x10` 字节，包含四组 `角色 UInt16 + 特效值 UInt8` 和两组 `兵种 UInt8 + 特效值 UInt8`。角色 ID `0..1023` 有效；不同派生版运行时使用 `1024` 或 `1025` 表示空，扳手附加后扫描完整分配表识别当前空值，UI 统一显示为“空”，保存时按当前进程的原始编码写回。兵种 `0..79` 有效，读取到 `80` 及以上时显示为空，保存统一写 `255`。
 
 天赋页在 6.6 下显示两行三列的六个“目标/值”槽，六个特效值彼此独立。6.1–6.5 仍使用原来的三角色、一兵种和共享特效值布局。旧地址 `0x00507800` 是另一张动态分组表，不再用于 6.6 天赋读写。
 
@@ -42,7 +42,7 @@ conda activate banshou32
 powershell -ExecutionPolicy Bypass -File .\build_release.ps1
 ```
 
-`banshou32` 必须是 32 位 Python 3.8-3.11。脚本会安装锁定的开发/Release 依赖、拒绝 64 位解释器、运行语法编译和单元测试，然后使用 `banshou66.spec` 生成 `dist\6.6扳手.exe` 和对应 `.sha256`。构建临时文件、pip 缓存和 PyInstaller 缓存默认写入源码目录的 `build-temp`，不依赖系统盘剩余空间；需要改到其它磁盘时先设置 `$env:BANSHOU_BUILD_TEMP='F:\banshou-build-temp'`。原 `build_32bit.bat` 继续保留为兼容入口，但新脚本和 spec 不依赖 CMD 中文代码页。`DIY.csv` 仍是可选用户文件；源码没有提供默认内容，因此不会自动生成。
+`banshou32` 必须是 32 位 Python 3.8-3.11。脚本会安装锁定的开发/Release 依赖、拒绝 64 位解释器、运行语法编译和单元测试，然后使用 `banshou66.spec` 生成 `dist\6.6扳手.exe` 和对应 `.sha256`。spec 会从当前 Conda 环境的 `Library\bin` 显式收集 `_ctypes/_lzma/_bz2` 所需的 `ffi.dll/liblzma.dll/libbz2.dll`，避免 PyInstaller 5.13 漏收 Conda 运行库。构建完成后脚本会启动产物并拒绝任何 `Unhandled exception` 或 `Failed to execute script` 窗口。构建临时文件、pip 缓存和 PyInstaller 缓存默认写入源码目录的 `build-temp`，不依赖系统盘剩余空间；需要改到其它磁盘时先设置 `$env:BANSHOU_BUILD_TEMP='F:\banshou-build-temp'`。原 `build_32bit.bat` 继续保留为兼容入口，但新脚本和 spec 不依赖 CMD 中文代码页。`DIY.csv` 仍是可选用户文件；源码没有提供默认内容，因此不会自动生成。
 
 PyInstaller 5.13 仍依赖 `pkg_resources`，因此 `requirements.txt` 将 setuptools 限制为 `<81`。常规开发环境由 `requirements-dev.txt` 使用 Capstone 5.0.3；32 位 Windows 没有该版本的预编译 wheel，`requirements-dev-32.txt` 因此固定使用 API 兼容的 Capstone 4.0.2。正式扳手不打包仅供开发使用的 Capstone。
 

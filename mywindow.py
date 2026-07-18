@@ -5086,13 +5086,21 @@ class Ui_MainWindow(object):
             raise ValueError("特效编号越界")
         return addr_tianfu + effect_id * self.engine_profile.limits["effect_stride"]
 
+    def _effect_empty_character_value_66(self):
+        return int(self.engine_profile.metadata.get(
+            "effect_empty_character", EFFECT_EMPTY_CHARACTER_66))
+
     def _read_effect_assignment_66(self, effect_id):
         address = self._effect_row_address_66(effect_id)
         row = parse_effect_assignment_row_66(
             self.memory_session.read_actual_bytes(address, 0x10))
-        if any(item.target_id > EFFECT_EMPTY_CHARACTER_66
-               for item in row.characters):
-            raise ValueError("6.6特效行包含超出 0..1024 的角色 ID")
+        character_count = self.engine_profile.limits["person_count"]
+        empty_value = self._effect_empty_character_value_66()
+        if any(item.target_id >= character_count and
+               item.target_id != empty_value for item in row.characters):
+            raise ValueError(
+                "6.6特效行角色 ID 不属于 0..%d 或空值 %d" %
+                (character_count - 1, empty_value))
         return row
 
     def _show_effect_assignment_66(self, row):
@@ -5102,9 +5110,12 @@ class Ui_MainWindow(object):
                          self.power_input_1_7, self.power_input_1_8)
         job_inputs = (self.power_input_1_9, self.power_input_1_11)
         job_values = (self.power_input_1_10, self.power_input_1_12)
+        character_count = self.engine_profile.limits["person_count"]
         for slot, target, value in zip(row.characters, person_inputs,
                                        person_values):
-            target.setCurrentIndex(slot.target_id)
+            target.setCurrentIndex(slot.target_id
+                                   if slot.target_id < character_count
+                                   else character_count)
             value.setText(str(slot.effect_value))
         for slot, target, value in zip(row.jobs, job_inputs, job_values):
             target.setCurrentIndex(slot.target_id
@@ -5120,10 +5131,14 @@ class Ui_MainWindow(object):
         job_inputs = (self.power_input_1_9, self.power_input_1_11)
         job_values = (self.power_input_1_10, self.power_input_1_12)
         characters = []
+        character_count = self.engine_profile.limits["person_count"]
+        empty_value = self._effect_empty_character_value_66()
         for index, (target, value) in enumerate(zip(person_inputs,
                                                      person_values), 1):
             target_id = target.currentIndex()
-            if not 0 <= target_id <= EFFECT_EMPTY_CHARACTER_66:
+            if target_id == character_count:
+                target_id = empty_value
+            elif not 0 <= target_id < character_count:
                 raise ValueError("角色%d未选择有效目标" % index)
             characters.append(EffectAssignmentSlot66(
                 target_id, self._parse_uint(value, 8, "角色%d特效值" % index)))

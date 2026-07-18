@@ -33,7 +33,9 @@ CONSUMABLE_STORAGE_COUNT_66 = 352
 EFFECT_ROW_SIZE_66 = 0x10
 EFFECT_CHARACTER_SLOTS_66 = 4
 EFFECT_JOB_SLOTS_66 = 2
-EFFECT_EMPTY_CHARACTER_66 = 1024
+EFFECT_CHARACTER_COUNT_66 = 1024
+EFFECT_EMPTY_CHARACTER_66 = EFFECT_CHARACTER_COUNT_66
+EFFECT_EMPTY_CHARACTER_VALUES_66 = (1024, 1025)
 EFFECT_JOB_COUNT_66 = 80
 
 
@@ -356,6 +358,25 @@ def encode_effect_assignment_row_66(row: EffectAssignmentRow66) -> bytes:
     if len(result) != EFFECT_ROW_SIZE_66:
         raise ValueError("6.6特效分配行编码长度错误")
     return bytes(result)
+
+
+def detect_effect_empty_character_66(table: bytes) -> int:
+    if len(table) % EFFECT_ROW_SIZE_66:
+        raise ValueError("6.6特效分配表长度不是 0x10 的整数倍")
+    sentinels = set()
+    for offset in range(0, len(table), EFFECT_ROW_SIZE_66):
+        row = parse_effect_assignment_row_66(
+            table[offset:offset + EFFECT_ROW_SIZE_66])
+        sentinels.update(item.target_id for item in row.characters
+                         if item.target_id >= EFFECT_CHARACTER_COUNT_66)
+    invalid = sentinels.difference(EFFECT_EMPTY_CHARACTER_VALUES_66)
+    if invalid:
+        raise ValueError("6.6特效表包含未知空角色值: %s" %
+                         ", ".join(str(value) for value in sorted(invalid)))
+    if len(sentinels) > 1:
+        raise ValueError("6.6特效表混用了多个空角色值: %s" %
+                         ", ".join(str(value) for value in sorted(sentinels)))
+    return next(iter(sentinels), EFFECT_EMPTY_CHARACTER_66)
 
 
 def parse_item_row_66(row: bytes) -> ItemRow66:
@@ -792,14 +813,10 @@ class EngineProfile:
                 failures["effect"] = (
                     "特效分配表运行时指针无效: 0x%08X" % effect_base)
             else:
-                first_row = parse_effect_assignment_row_66(
-                    memory.read_actual_bytes(effect_base,
-                                             self.limits["effect_stride"]))
-                if any(item.target_id > EFFECT_EMPTY_CHARACTER_66
-                       for item in first_row.characters):
-                    failures["effect"] = "特效分配表角色 ID 结构探针失败"
-                else:
-                    self.addresses["effect_assign"] = effect_base
+                effect_table = memory.read_actual_bytes(effect_base, effect_size)
+                self.metadata["effect_empty_character"] = (
+                    detect_effect_empty_character_66(effect_table))
+                self.addresses["effect_assign"] = effect_base
             if not memory.validate_range(
                     self.addresses["exclusive_set"],
                     self.limits["effect_count"] * 16, write=True):
@@ -1226,6 +1243,7 @@ def detect_engine(exe_path: str, version_part: Optional[int] = None) -> EnginePr
         },
         "consumable_item_ids": list(range(
             CONSUMABLE_ID_MIN_66, CONSUMABLE_ID_MAX_66 + 1)),
+        "effect_empty_character": EFFECT_EMPTY_CHARACTER_66,
         "auto_return_layout": {},
         "variable_layouts": {
             "variables_bool": {
