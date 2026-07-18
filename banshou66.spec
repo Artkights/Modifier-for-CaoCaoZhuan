@@ -1,9 +1,19 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 from pathlib import Path
+import sys
 
 
 project_dir = Path(SPECPATH)
+runtime_dll_dir = Path(sys.prefix) / "Library" / "bin"
+runtime_dll_names = ("ffi.dll", "liblzma.dll", "libbz2.dll")
+missing_runtime_dlls = [name for name in runtime_dll_names
+                        if not (runtime_dll_dir / name).is_file()]
+if missing_runtime_dlls:
+    raise FileNotFoundError(
+        "Missing Conda runtime DLLs: %s" % ", ".join(missing_runtime_dlls))
+binaries = [(str(runtime_dll_dir / name), ".")
+            for name in runtime_dll_names]
 datas = [
     (str(project_dir / "logo.ico"), "."),
     (str(project_dir / "准星.cur"), "."),
@@ -14,7 +24,7 @@ datas = [
 a = Analysis(
     [str(project_dir / "main.py")],
     pathex=[str(project_dir)],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=["win32timezone"],
     hookspath=[],
